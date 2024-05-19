@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Microsoft.VisualBasic;
 using Microsoft.VisualBasic.Devices;
 using Newtonsoft.Json.Linq;
 
@@ -28,7 +29,7 @@ namespace Csharp_Tibia_Bot
         {
             InitializeComponent();
         }
-        
+
         private void Form1_Load(object sender, EventArgs e)
         {
             string json = File.ReadAllText("config.json");
@@ -74,11 +75,14 @@ namespace Csharp_Tibia_Bot
 
         private void init_bot()
         {
-            int input_hp = 245;
-            int input_mana = 450;
+            int input_hp = 0;
+            int input_mana = 0;
 
             if (address_mana == 0)
             {
+                input_hp = Int32.Parse(Interaction.InputBox("ATENÇÃO, seu HP deve estar cheio.\nDigite seu total de HP:", "HP", ""));
+                input_mana = Int32.Parse(Interaction.InputBox("ATENÇÃO, sua MANA deve estar cheia.\nDigite seu total de MANA:", "MANA", ""));
+
                 address_mana = findManaAddress(input_mana);
                 address_hp = findManaAddress(input_hp);
 
@@ -111,7 +115,7 @@ namespace Csharp_Tibia_Bot
                             limit = input_hp * limit / 100;
                             if (hp < limit)
                             {
-                                //SendKeys.Send(trigger["hotkey"].ToString());
+                                SendKeys.Send(trigger["hotkey"].ToString());
                             }
                         }
                         else if (trigger["type"].ToString() == "mana")
@@ -120,7 +124,7 @@ namespace Csharp_Tibia_Bot
                             limit = input_mana * limit / 100;
                             if (mana < limit)
                             {
-                                //SendKeys.Send(trigger["hotkey"].ToString());
+                                SendKeys.Send(trigger["hotkey"].ToString());
                             }
                         }
                     }
