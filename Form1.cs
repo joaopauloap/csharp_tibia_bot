@@ -11,21 +11,9 @@ namespace Csharp_Tibia_Bot
         private Thread workerThread;
         private bool running;
         private JObject config;
-
-        public Form1()
-        {
-            InitializeComponent();
-        }
-        private void Form1_Load(object sender, EventArgs e)
-        {
-            string json = File.ReadAllText("config.json");
-            config = JObject.Parse(json);
-        }
-
-        private void Form1_Closing(object sender, FormClosingEventArgs e)
-        {
-
-        }
+        IntPtr processHandle;
+        private int address_mana;
+        private int address_hp;
 
         [DllImport("kernel32.dll")]
         public static extern IntPtr OpenProcess(int dwDesiredAccess, bool bInheritHandle, int dwProcessId);
@@ -36,39 +24,82 @@ namespace Csharp_Tibia_Bot
         [DllImport("kernel32.dll")]
         public static extern bool CloseHandle(IntPtr hObject);
 
-        private void init_bot()
+        public Form1()
         {
-            string processName = "client";
-            IntPtr address_mana = (IntPtr)0x0B63FEF0;
-            IntPtr address_hp = (IntPtr)0x0B63F9D0;
-
-            int input_hp = 5807;
-            int input_mana = 1875;
-
-            Process process = Process.GetProcessesByName(processName)[0];
-            IntPtr processHandle = OpenProcess(0x0400 | 0x0010, false, process.Id);
+            InitializeComponent();
+        }
+        
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            string json = File.ReadAllText("config.json");
+            config = JObject.Parse(json);
+            Process process = Process.GetProcessesByName("client")[0];
+            processHandle = OpenProcess(0x0400 | 0x0010, false, process.Id);
 
             if (processHandle == IntPtr.Zero)
             {
-                MessageBox.Show("Erro ao abrir o processo.");
+                MessageBox.Show("Erro ao abrir o processo. Abra o client.");
                 return;
             }
+        }
 
+        private void Form1_Closing(object sender, FormClosingEventArgs e)
+        {
+            CloseHandle(processHandle);
+        }
+
+        private int readAddress(int addr)
+        {
+            IntPtr address = (IntPtr)addr;
             byte[] buffer = new byte[4];
+            ReadProcessMemory(processHandle, address, buffer, buffer.Length, out int bytesReadHp);
+            return BitConverter.ToInt32(buffer, 0);
+        }
+
+        private int findManaAddress(int input_mana)
+        {
+            int startAddr = 0x0A000000;
+            int endAddr = 0x0FFFFFFF;
+
+            for (int addr = startAddr; addr < endAddr; addr++)
+            {
+                if ((readAddress(addr) == input_mana) && (readAddress(addr + 8) == input_mana))
+                {
+                    return addr;
+                };
+            }
+
+            return 0;
+        }
+
+        private void init_bot()
+        {
+            int input_hp = 245;
+            int input_mana = 450;
+
+            if (address_mana == 0)
+            {
+                address_mana = findManaAddress(input_mana);
+                address_hp = findManaAddress(input_hp);
+
+                if (address_mana == 0 || address_hp == 0)
+                {
+                    MessageBox.Show("Endereço não encontrado.");
+                    return;
+                }
+            }
 
             while (running)
             {
                 Invoke(new Action(() =>
                 {
                     //HP
-                    ReadProcessMemory(processHandle, address_hp, buffer, buffer.Length, out int bytesReadHp);
-                    int hp = BitConverter.ToInt32(buffer, 0);
+                    int hp = readAddress(address_hp);
                     progressBar_hp.Value = (hp * 100) / input_hp;
                     label_current_hp.Text = $"{hp}/{input_hp}";
 
                     //Mana
-                    ReadProcessMemory(processHandle, address_mana, buffer, buffer.Length, out int bytesReadMana);
-                    int mana = BitConverter.ToInt32(buffer, 0);
+                    int mana = readAddress(address_mana);
                     progressBar_mana.Value = (mana * 100) / input_mana;
                     label_current_mana.Text = $"{mana}/{input_mana}";
 
@@ -80,7 +111,7 @@ namespace Csharp_Tibia_Bot
                             limit = input_hp * limit / 100;
                             if (hp < limit)
                             {
-                                SendKeys.Send(trigger["hotkey"].ToString());
+                                //SendKeys.Send(trigger["hotkey"].ToString());
                             }
                         }
                         else if (trigger["type"].ToString() == "mana")
@@ -89,7 +120,7 @@ namespace Csharp_Tibia_Bot
                             limit = input_mana * limit / 100;
                             if (mana < limit)
                             {
-                                SendKeys.Send(trigger["hotkey"].ToString());
+                                //SendKeys.Send(trigger["hotkey"].ToString());
                             }
                         }
                     }
@@ -98,8 +129,6 @@ namespace Csharp_Tibia_Bot
 
                 Thread.Sleep(100);
             }
-
-            CloseHandle(processHandle);
 
         }
 
@@ -117,9 +146,13 @@ namespace Csharp_Tibia_Bot
             else
             {
                 running = false;
+                progressBar_hp.Value = 0;
+                progressBar_mana.Value = 0;
+                label_current_hp.Text = "-";
+                label_current_mana.Text = "-";
                 if (workerThread != null && workerThread.IsAlive)
                 {
-                    workerThread.Join(); 
+                    workerThread.Join();
                 }
             }
         }
